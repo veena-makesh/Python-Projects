@@ -1,0 +1,111 @@
+import pandas as pd
+import json
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\T201605PDPI+BNFT.csv")
+
+df['month'] = 5
+df['year'] = 2016
+
+dff = pd.read_csv("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\T201606PDPI+BNFT.csv")
+
+dff['month'] = 6
+dff['year'] = 2016
+
+jsondata=pd.read_json("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\column_remapping.json")
+
+jsondata.head(10)
+
+chem=pd.read_csv("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\chem.csv")
+
+chem.head(10)
+
+chem.columns = [c.replace(' ', '_') for c in chem.columns]
+
+jsondata['bnf_code'][1:10]
+
+chem['CHEM_SUB'][1:10]
+
+bnf_code = jsondata['bnf_code'].unique()
+CHEM_sub = chem['CHEM_SUB'].unique()
+
+bnf = jsondata['bnf_code'].str.slice(start=0, stop=9)
+
+bnf[1:10]
+
+lookup = jsondata[bnf.isin(CHEM_sub)]
+
+lookup[10:20]
+
+index = lookup.index.values
+
+df1 = df[df['bnf_code'].isin(index)]
+
+df2 = df1[df1['bnf_code'] == 8687]
+
+dff1 = dff[dff['bnf_code'].isin(index)]
+
+dff2 = dff1[dff1['bnf_code'] == 8687]
+
+compare = dff2[dff2['practice'].isin(df2['practice'])]
+
+combined = df2.append(compare, ignore_index = True)
+
+y = combined['quantity']
+print(y.shape)
+
+min(y), max(y), y.mean(), y.median()
+
+#combined.boxplot(column = ['quantity'], grid = True, fontsize = 10)
+green_diamond = dict(markerfacecolor='g', marker='D')
+plt.boxplot(y, flierprops=green_diamond, showfliers=False)
+
+ysmall = y[combined['quantity'] <= 30000]
+yysmall = ysmall.reshape(len(ysmall), 1)
+standard = preprocessing.StandardScaler()
+ynorm = standard.fit_transform(yysmall)
+yysmall.shape, ynorm.shape
+
+#X = combined.drop(columns = ['quantity', 'year', 'bnf_code', 'bnf_name', 'items', 'nic', 'act_cost', 'practice'])
+combined_small = combined[combined['quantity'] <= 30000]
+practice_encoded = pd.get_dummies(combined_small['practice'])
+month_encoded = pd.get_dummies(combined_small['month'])
+print(practice_encoded.shape)
+print(month_encoded.shape)
+
+Xnew = pd.concat([month_encoded, practice_encoded], axis=1)
+len(combined_small['practice'].unique())
+
+Xnew.head(5)
+
+X_train, X_test, y_train, y_test = train_test_split(Xnew, yysmall, train_size = 0.7, shuffle = True)
+
+regressor = LinearRegression(fit_intercept=True)
+regressor.fit(Xnew, yysmall)
+
+ypred = regressor.predict(Xnew)
+
+ypred[1:10], yysmall[1:10]
+
+print('Coefficients: \n', regressor.coef_), len(regressor.coef_.T)
+
+coeff_df = pd.DataFrame(regressor.coef_.T, Xnew.columns, columns=['Coefficient'])  
+
+coeff_df
+
+print('Variance score: {}'.format(regressor.score(Xnew, ynorm)))
+
+combined_small.to_csv("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\ReducedCombined05n06.csv")
+
+print('R Square score: ', r2_score(yysmall, ypred))
+
+Testing = pd.concat([month_encoded, practice_encoded, combined_small['quantity']], axis=1)
+
+Testing.head(5)
+
+Testing.to_csv("C:\\Users\\VEENA\\Datasets\\HealthnPharma\\general-practice-prescribing-data\\Testing.csv")
